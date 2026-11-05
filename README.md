@@ -24,3 +24,5 @@ Notre rôle, en tant qu'équipe DevOps, est de la **conteneuriser avec Docker** 
 - Node.js / Express
 - PostgreSQL
 - Git / GitHub
+
+k
