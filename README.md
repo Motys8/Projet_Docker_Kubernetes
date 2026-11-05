@@ -23,5 +23,5 @@ Notre rôle, en tant qu'équipe DevOps, est de la **conteneuriser avec Docker** 
 - Kubernetes (minikube) et kubectl
 - Node.js / Express
 - PostgreSQL
-- Git / GitHub
+- Git / GitHub.
 
