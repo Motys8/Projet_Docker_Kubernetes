@@ -25,4 +25,3 @@ Notre rôle, en tant qu'équipe DevOps, est de la **conteneuriser avec Docker** 
 - PostgreSQL
 - Git / GitHub
 
-k
