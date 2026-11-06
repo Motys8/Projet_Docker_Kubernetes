@@ -2,59 +2,152 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>TaskBoard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskBoard - DevOps Project</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
-        .pod-info { background: #f4f4f4; padding: 10px; margin-bottom: 20px; border-radius: 4px; font-size: 0.9em; color: #555; }
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 600px; 
+            margin: 40px auto; 
+            padding: 0 20px; 
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1 { color: #2c3e50; }
+        .pod-info { 
+            background: #e8f4fd; 
+            border-left: 4px solid #3498db; 
+            padding: 10px 15px; 
+            margin-bottom: 20px; 
+            border-radius: 4px; 
+            font-size: 0.95em; 
+            color: #2980b9; 
+        }
+        form { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+        }
+        input[type="text"] { 
+            flex: 1; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            font-size: 1em; 
+        }
+        button { 
+            padding: 10px 15px; 
+            border: none; 
+            cursor: pointer; 
+            border-radius: 4px; 
+            font-weight: bold; 
+        }
+        .btn-add { background: #2ecc71; color: white; }
+        .btn-add:hover { background: #27ae60; }
+        .btn-delete { background: #e74c3c; color: white; padding: 5px 10px; font-size: 0.85em; }
+        .btn-delete:hover { background: #c0392b; }
         ul { list-style: none; padding: 0; }
-        li { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
-        button { background: #e74c3c; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
+        li { 
+            background: #fff; 
+            border: 1px solid #ddd; 
+            padding: 12px 15px; 
+            margin-bottom: 8px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
     </style>
 </head>
 <body>
-    <h1>TaskBoard</h1>
-    <div class="pod-info">Servi par le Pod : <span id="hostname">Chargement...</span></div>
 
+    <h1>TaskBoard</h1>
+    
+    <!-- Bonus APP-6 : Affichage du nom du Pod / Hostname -->
+    <div class="pod-info">
+        🖥️ Servi par le Pod : <strong id="hostname">Chargement...</strong>
+    </div>
+
+    <!-- Formulaire d'ajout de tâche -->
     <form id="task-form">
-        <input type="text" id="task-title" placeholder="Nouvelle tâche..." required>
-        <button type="submit" style="background: #2ecc71;">Ajouter</button>
+        <input type="text" id="task-title" placeholder="Nouvelle tâche à accomplir..." required>
+        <button type="submit" class="btn-add">Ajouter</button>
     </form>
 
-    <ul id="task-list"></ul>
+    <!-- Liste des tâches -->
+    <ul id="task-list">
+        <!-- Chargé dynamiquement via JavaScript -->
+    </ul>
 
     <script>
-        // Afficher le nom d'hôte (Hostname / ID du Pod)
-        document.getElementById('hostname').innerText = window.location.hostname;
-
-        async function loadTasks() {
-            const res = await fetch('/api/tasks');
-            const tasks = await res.json();
-            const list = document.getElementById('task-list');
-            list.innerHTML = '';
-            tasks.forEach(t => {
-                const li = document.createElement('li');
-                li.innerHTML = `${t.titre} <button onclick="deleteTask(${t.id})">Supprimer</button>`;
-                list.appendChild(li);
-            });
+        // Récupérer et afficher le nom du Pod (Bonus APP-6)
+        async function loadHostname() {
+            try {
+                const res = await fetch('/api/hostname');
+                const data = await res.json();
+                document.getElementById('hostname').innerText = data.hostname;
+            } catch (err) {
+                document.getElementById('hostname').innerText = window.location.hostname;
+            }
         }
 
+        // Charger la liste des tâches depuis l'API
+        async function loadTasks() {
+            try {
+                const res = await fetch('/api/tasks');
+                const tasks = await res.json();
+                const list = document.getElementById('task-list');
+                list.innerHTML = '';
+                
+                if (tasks.length === 0) {
+                    list.innerHTML = '<li style="justify-content: center; color: #7f8c8d;">Aucune tâche pour le moment.</li>';
+                    return;
+                }
+
+                tasks.forEach(t => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span>${t.titre}</span>
+                        <button class="btn-delete" onclick="deleteTask(${t.id})">Supprimer</button>
+                    `;
+                    list.appendChild(li);
+                });
+            } catch (err) {
+                console.error("Erreur lors du chargement des tâches :", err);
+            }
+        }
+
+        // Ajouter une tâche
         document.getElementById('task-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const titleInput = document.getElementById('task-title');
-            await fetch('/api/tasks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ titre: titleInput.value })
-            });
-            titleInput.value = '';
-            loadTasks();
+            
+            try {
+                await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ titre: titleInput.value })
+                });
+                titleInput.value = '';
+                loadTasks();
+            } catch (err) {
+                console.error("Erreur lors de l'ajout :", err);
+            }
         });
 
+        // Supprimer une tâche
         async function deleteTask(id) {
-            await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
-            loadTasks();
+            try {
+                await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+                loadTasks();
+            } catch (err) {
+                console.error("Erreur lors de la suppression :", err);
+            }
         }
 
+        // Initialisation au chargement de la page
+        loadHostname();
         loadTasks();
     </script>
 </body>

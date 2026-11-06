@@ -414,3 +414,41 @@ Thumbs.db
 
 
 
+
+
+
+
+**Etape 7:**
+
+**Le Bonus APP-6 :**
+
+Afficher le nom du Pod (Hostname)Dans le cahier des charges, l'exigence APP-6 (qui rapporte 0,5 point bonus) demande à ce que la page d'accueil affiche le nom du Pod qui a servi la requête (via la variable HOSTNAME), ce qui permet de visualiser la répartition de charge entre les différents réplicas de ton application.   
+
+app/server.js pour renvoyer le hostnameAjoute cette route dans ton serveur Express pour que le front-end puisse récupérer l'identifiant du conteneur/Pod qui répond :
+
+// Route pour récupérer le nom du Pod (Bonus APP-6)
+app.get('/api/hostname', (req, res) => {
+  res.json({ hostname: process.env.HOSTNAME || 'localhost-dev' });
+});
+
+
+app/public/index.html pour l'afficher dynamiquementModifie la partie JavaScript de ta page HTML pour qu'elle interroge cette route et l'affiche bien sur le tableau de bord :
+
+<div class="pod-info">Servi par le Pod : <span id="hostname">Chargement...</span></div>
+<script>
+    // Récupérer le nom du Pod depuis l'API (Bonus APP-6)
+    async function loadHostname() {
+        try {
+            const res = await fetch('/api/hostname');
+            const data = await res.json();
+            document.getElementById('hostname').innerText = data.hostname;
+        } catch (err) {
+            document.getElementById('hostname').innerText = window.location.hostname;
+        }
+    }
+    loadHostname();
+    // ... reste de du code pour les tâches ...
+</script>
+
+
+

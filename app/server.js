@@ -70,3 +70,11 @@ app.delete('/api/tasks/:id', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+
+
+
+// BONUUS 1 Route pour récupérer le nom du Pod
+app.get('/api/hostname', (req, res) => {
+  res.json({ hostname: process.env.HOSTNAME || 'localhost-dev' });
+});
