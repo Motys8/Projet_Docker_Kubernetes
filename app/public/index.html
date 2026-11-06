@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>TaskBoard</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+        .pod-info { background: #f4f4f4; padding: 10px; margin-bottom: 20px; border-radius: 4px; font-size: 0.9em; color: #555; }
+        ul { list-style: none; padding: 0; }
+        li { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+        button { background: #e74c3c; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>TaskBoard</h1>
+    <div class="pod-info">Servi par le Pod : <span id="hostname">Chargement...</span></div>
+
+    <form id="task-form">
+        <input type="text" id="task-title" placeholder="Nouvelle tâche..." required>
+        <button type="submit" style="background: #2ecc71;">Ajouter</button>
+    </form>
+
+    <ul id="task-list"></ul>
+
+    <script>
+        // Afficher le nom d'hôte (Hostname / ID du Pod)
+        document.getElementById('hostname').innerText = window.location.hostname;
+
+        async function loadTasks() {
+            const res = await fetch('/api/tasks');
+            const tasks = await res.json();
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+            tasks.forEach(t => {
+                const li = document.createElement('li');
+                li.innerHTML = `${t.titre} <button onclick="deleteTask(${t.id})">Supprimer</button>`;
+                list.appendChild(li);
+            });
+        }
+
+        document.getElementById('task-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const titleInput = document.getElementById('task-title');
+            await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ titre: titleInput.value })
+            });
+            titleInput.value = '';
+            loadTasks();
+        });
+
+        async function deleteTask(id) {
+            await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+            loadTasks();
+        }
+
+        loadTasks();
+    </script>
+</body>
+</html>

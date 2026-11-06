@@ -42,8 +42,6 @@ Ton application doit utiliser les variables d'environnement pour se connecter à
 
 
 
-JavaScript
-
 const express = require('express');
 
 const { Pool } = require('pg');
@@ -53,6 +51,10 @@ const { Pool } = require('pg');
 const app = express();
 
 app.use(express.json());
+
+// Pour servir une future page HTML statique (étape suivante)
+
+app.use(express.static('public'));
 
 
 
@@ -78,17 +80,17 @@ const PORT = process.env.APP\_PORT || 3000;
 
 
 
-// Route healthz (APP-4) : vérifie juste que le serveur tourne
+// APP-4 : Route healthz (sans interroger la base)
 
 app.get('/healthz', (req, res) => {
 
-&#x20; res.status(200.send('OK');
+&#x20; res.status(200).send('OK');
 
 });
 
 
 
-// Route readyz (APP-5) : teste la connexion à la base de données
+// APP-5 : Route readyz (teste la connexion à la base)\[cite: 2]
 
 app.get('/readyz', async (req, res) => {
 
@@ -108,15 +110,65 @@ app.get('/readyz', async (req, res) => {
 
 
 
-// Exemple de route API pour lister les tâches (APP-1, APP-2)
+// APP-1, APP-2 : Lister les tâches\[cite: 2]
 
 app.get('/api/tasks', async (req, res) => {
 
 &#x20; try {
 
-&#x20;   const result = await pool.query('SELECT \* FROM taches');
+&#x20;   const result = await pool.query('SELECT \* FROM taches ORDER BY id DESC');
 
 &#x20;   res.json(result.rows);
+
+&#x20; } catch (err) {
+
+&#x20;   res.status(500).json({ error: err.message });
+
+&#x20; }
+
+});
+
+
+
+// APP-1, APP-2 : Créer une tâche\[cite: 2]
+
+app.post('/api/tasks', async (req, res) => {
+
+&#x20; const { titre } = req.body;
+
+&#x20; try {
+
+&#x20;   const result = await pool.query(
+
+&#x20;     'INSERT INTO taches (titre, terminee, date\_creation) VALUES ($1, false, NOW()) RETURNING \*',
+
+&#x20;     \[titre]
+
+&#x20;   );
+
+&#x20;   res.status(201).json(result.rows\[0]);
+
+&#x20; } catch (err) {
+
+&#x20;   res.status(500).json({ error: err.message });
+
+&#x20; }
+
+});
+
+
+
+// APP-2 : Supprimer une tâche\[cite: 2]
+
+app.delete('/api/tasks/:id', async (req, res) => {
+
+&#x20; const { id } = req.params;
+
+&#x20; try {
+
+&#x20;   await pool.query('DELETE FROM taches WHERE id = $1', \[id]);
+
+&#x20;   res.status(204).send();
 
 &#x20; } catch (err) {
 
@@ -133,4 +185,142 @@ app.listen(PORT, () => {
 &#x20; console.log(`Server running on port ${PORT}`);
 
 });
+
+
+
+
+
+
+
+**Étape 4** : 
+
+Créer la page HTML de test (app/public/index.html)Pour pouvoir tester ton application visuellement (et préparer la Semaine 2), crée un dossier public dans ton dossier app, puis un fichier index.html dedans :   Bashmkdir app/public
+
+touch app/public/index.html
+
+
+
+<!DOCTYPE html>
+
+<html lang="fr">
+
+<head>
+
+&#x20;   <meta charset="UTF-8">
+
+&#x20;   <title>TaskBoard</title>
+
+&#x20;   <style>
+
+&#x20;       body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+
+&#x20;       .pod-info { background: #f4f4f4; padding: 10px; margin-bottom: 20px; border-radius: 4px; font-size: 0.9em; color: #555; }
+
+&#x20;       ul { list-style: none; padding: 0; }
+
+&#x20;       li { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+
+&#x20;       button { background: #e74c3c; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
+
+&#x20;   </style>
+
+</head>
+
+<body>
+
+&#x20;   <h1>TaskBoard</h1>
+
+&#x20;   <div class="pod-info">Servi par le Pod : <span id="hostname">Chargement...</span></div>
+
+
+
+&#x20;   <form id="task-form">
+
+&#x20;       <input type="text" id="task-title" placeholder="Nouvelle tâche..." required>
+
+&#x20;       <button type="submit" style="background: #2ecc71;">Ajouter</button>
+
+&#x20;   </form>
+
+
+
+&#x20;   <ul id="task-list"></ul>
+
+
+
+&#x20;   <script>
+
+&#x20;       // Afficher le nom d'hôte (Hostname / ID du Pod)
+
+&#x20;       document.getElementById('hostname').innerText = window.location.hostname;
+
+
+
+&#x20;       async function loadTasks() {
+
+&#x20;           const res = await fetch('/api/tasks');
+
+&#x20;           const tasks = await res.json();
+
+&#x20;           const list = document.getElementById('task-list');
+
+&#x20;           list.innerHTML = '';
+
+&#x20;           tasks.forEach(t => {
+
+&#x20;               const li = document.createElement('li');
+
+&#x20;               li.innerHTML = `${t.titre} <button onclick="deleteTask(${t.id})">Supprimer</button>`;
+
+&#x20;               list.appendChild(li);
+
+&#x20;           });
+
+&#x20;       }
+
+
+
+&#x20;       document.getElementById('task-form').addEventListener('submit', async (e) => {
+
+&#x20;           e.preventDefault();
+
+&#x20;           const titleInput = document.getElementById('task-title');
+
+&#x20;           await fetch('/api/tasks', {
+
+&#x20;               method: 'POST',
+
+&#x20;               headers: { 'Content-Type': 'application/json' },
+
+&#x20;               body: JSON.stringify({ titre: titleInput.value })
+
+&#x20;           });
+
+&#x20;           titleInput.value = '';
+
+&#x20;           loadTasks();
+
+&#x20;       });
+
+
+
+&#x20;       async function deleteTask(id) {
+
+&#x20;           await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+
+&#x20;           loadTasks();
+
+&#x20;       }
+
+
+
+&#x20;       loadTasks();
+
+&#x20;   </script>
+
+</body>
+
+</html>
+
+
 
