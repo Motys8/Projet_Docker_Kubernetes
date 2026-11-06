@@ -60,7 +60,8 @@ app.use(express.json());
 
 // Pour servir une future page HTML statique (étape suivante)
 
-app.use(express.static('public'));
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 
@@ -451,4 +452,10 @@ app/public/index.html pour l'afficher dynamiquementModifie la partie JavaScript 
 </script>
 
 
+**Etape 8:**
 
+Test Vérifier le rendu de la page HTML
+
+Lance application Node.js en local (node app/server.js).
+
+Ouvre navigateur à l'adresse : http://localhost:3000

@@ -4,7 +4,8 @@ const { Pool } = require('pg');
 const app = express();
 app.use(express.json());
 // Pour servir une future page HTML statique (étape suivante)
-app.use(express.static('public'));
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Connexion à la base via les variables d'environnement (Contrat d'interface)
 const pool = new Pool({
