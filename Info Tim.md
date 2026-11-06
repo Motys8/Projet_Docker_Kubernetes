@@ -324,3 +324,41 @@ touch app/public/index.html
 
 
 
+
+
+
+
+
+
+**Étape 5 :** 
+
+Créer le dossier k8s/ et la ConfigMap (k8s/10-configmap.yaml)À la racine de ton projet Projet\_Docker\_Kubernetes, crée un dossier k8s s'il n'existe pas encore, puis crée le fichier 10-configmap.yaml.   Tu peux le faire directement dans ton terminal PowerShell :PowerShellNew-Item -ItemType Directory k8s -Force
+
+New-Item -ItemType File k8s/10-configmap.yaml
+
+
+
+YAMLapiVersion: v1
+
+kind: ConfigMap
+
+metadata:
+
+&#x20; name: web-config
+
+&#x20; namespace: taskboard
+
+data:
+
+&#x20; DB\_HOST: "db"
+
+&#x20; DB\_PORT: "5432"
+
+&#x20; DB\_NAME: "taskboard"
+
+&#x20; DB\_USER: "taskboard"
+
+&#x20; APP\_PORT: "3000"
+
+
+
