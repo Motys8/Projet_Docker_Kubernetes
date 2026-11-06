@@ -1,2 +1,16 @@
-node_modules
+# Dépendances Node.js
+node_modules/
+
+# Fichiers d'environnement locaux (secrets, etc.)
 .env
+
+# Logs et fichiers temporaires OS
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
