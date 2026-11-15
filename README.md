@@ -19,10 +19,9 @@ Notre rôle, en tant qu'équipe DevOps, est de la **conteneuriser avec Docker** 
 - Dorian PERROT
 ## Outils utilisés
  
-- Docker et Docker Compose
-- Kubernetes (minikube) et kubectl
+- Docker et Docker Compose : v5.6.0
+- Kubernetes (minikube) : v1.39.0
+- kubectl : v1.36.1
 - Node.js / Express
 - PostgreSQL
 - Git / GitHub
-
-k
