@@ -1,10 +1,9 @@
 const express = require('express');
+const path = require('path');
 const { Pool } = require('pg');
 
 const app = express();
 app.use(express.json());
-// Pour servir une future page HTML statique (étape suivante)
-const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Connexion à la base via les variables d'environnement (Contrat d'interface)
@@ -13,7 +12,7 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'taskboard',
   user: process.env.DB_USER || 'taskboard',
-  password: process.env.DB_PASSWORD || 'secret',
+  password: process.env.DB_PASSWORD,
 });
 
 const PORT = process.env.APP_PORT || 3000;
@@ -23,7 +22,7 @@ app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
 });
 
-// APP-5 : Route readyz (teste la connexion à la base)[cite: 2]
+// APP-5 : Route readyz (teste la connexion à la base)
 app.get('/readyz', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -33,7 +32,7 @@ app.get('/readyz', async (req, res) => {
   }
 });
 
-// APP-1, APP-2 : Lister les tâches[cite: 2]
+// APP-1, APP-2 : Lister les tâches
 app.get('/api/tasks', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM taches ORDER BY id DESC');
@@ -43,7 +42,7 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-// APP-1, APP-2 : Créer une tâche[cite: 2]
+// APP-1, APP-2 : Créer une tâche
 app.post('/api/tasks', async (req, res) => {
   const { titre } = req.body;
   try {
@@ -57,7 +56,25 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-// APP-2 : Supprimer une tâche[cite: 2]
+// APP-2 : Marquer une tâche comme terminée / non terminée
+app.patch('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE taches SET terminee = NOT terminee WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Tâche introuvable' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// APP-2 : Supprimer une tâche
 app.delete('/api/tasks/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -68,14 +85,14 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// BONUS APP-6 : Route pour récupérer le nom du Pod
+app.get('/api/hostname', (req, res) => {
+  res.json({ hostname: process.env.HOSTNAME || 'localhost-dev' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
 
 
-
-// BONUUS 1 Route pour récupérer le nom du Pod
-app.get('/api/hostname', (req, res) => {
-  res.json({ hostname: process.env.HOSTNAME || 'localhost-dev' });
-});
