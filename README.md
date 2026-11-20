@@ -463,4 +463,71 @@ Ouvre navigateur à l'adresse : http://localhost:3000
 
 
 Semaine 1 (9 – 15 nov.) — ✅ Terminée à 100 %✅ Serveur Node.js / Express + PostgreSQL (app/server.js, app/package.json), sans mot de passe en dur.✅ API CRUD /api/tasks complète (GET, POST, PATCH, DELETE) alignée sur la table taches.✅ Sondes de santé /healthz (200 OK) et /readyz (SELECT 1, 200 ou 503) testées et validées.Semaine 2 (16 – 22 nov.) — ✅ Ta partie est bouclée (en attente d'équipe)✅ Interface HTML (app/public/index.html) + bonus APP-6 (affichage du nom du Pod via /api/hostname).✅ ConfigMap k8s/10-configmap.yaml (web-config, namespace taskboard, 5 variables sans mot de passe).✅ PR #1 nettoyée : node_modules/ retiré de Git (passée de 730 à 7 fichiers modifiés), description complète et liée au projet GitHub.   ✅ Test Docker Compose validé : build de taskboard-web:1.0.0, initialisation PostgreSQL (db/init.sql), affichage des 3 tâches et du hostname du conteneur.   ⬜ Reste côté équipe pour clôturer S2 :Faire valider et merger ta PR #1 par Justin (vérifie qu'il est bien mis en Reviewer sur GitHub).   Relire la PR docker de Justin (indentation de compose.yaml + suppression de app/node_modules/).Une fois les PR de tout le monde mergées dans main, refaire le docker compose up --build depuis main.Semaine 3 (23 – 29 nov.) — 🚀 Déjà bien avancée✅ Version v1.1.0 prête : package.json passé en 1.1.0, nouveau thème vert + badge v1.1.0 + case à cocher (PATCH) dans index.html, poussée sur la branche app/v1.1.0 et taguée v1.1.0. (À ne pas merger dans main tant que la 1.0.0 n'est pas mergée et buildée.)⬜ Intégration Minikube : corriger d'éventuels bugs quand Hugo et Justin déploieront sur le cluster.Semaine 4 (30 nov. – 6 déc.) — ⬜ À venir⬜ Valider les tests T3 (persistance des tâches) et T6 (base à 0 réplica → Pods web en 0/1 sans redémarrer) sur Minikube, ajouter les commandes au README.md et faire les captures (docs/captures/).⬜ Rédiger tes parties du rapport (docs/rapport) : « Application et sondes de santé », tableau « Répartition du travail », difficultés et solutions.Semaine de marge (7 – 14 déc.) — ⬜ À venir⬜ Relecture du README.md, test « cluster vierge » et 2 répétitions chronométrées avant le rendu (15 déc.) et la soutenance (16 déc.).
+___
+## Lancement en local (Docker Compose)
 
+Pour tester l'application et la base de données PostgreSQL en local sans Kubernetes : 
+
+1. Créer le fichier d'envrionnement à partir du modèle : 
+``` bash 
+cp .env.example .env
+```
+
+2. Démarrer la stack complète (base de données + application web) : 
+``` bash 
+docker compose up -d --build
+```
+
+3. Accéder à l'application sur `http://localhost:3000`
+
+4. Arrêter et nettoyer les conteneurs (ajouter `-v` pour réinitialiser la base de données) : 
+``` bash 
+docker compose down 
+```
+
+## Construction et chargement des images Docker (Minikube)
+Minikube utilise son propre registre interne isolé. Il faut construire l'image localement puis la charger explicitement dans le cluster : 
+
+1. Constuire l'image de l'application web depuis la racine du dépôt : 
+``` bash 
+docker build -t taskboard-web:1.0.0 ./app
+```
+
+2. Charger l'image dans le cluster Minikube 
+``` bash
+minikube image load taskboard-web:1.0.0
+```
+
+3. Vérifier que l'image est bien présente dans Minikube : 
+``` bash 
+minikube image ls | grep taskboard
+```
+
+## Validation Docker : Sécurité (T8) et Mise à jour (T9)
+
+### T8 - Vérification de l'absence de secrets et utilisateur non-root dans l'image
+- Vérifier l'historique des couches de l'image (aucun mot de passe en clair) : 
+``` bash 
+docker history --no-trunc taskboard-web:1.0.0
+```
+- Vérifier que le conteneur s'exécute bien avec l'UID non-root `1000` : 
+``` bash 
+docker run --rm taskboard-web:1.0.0 id`
+```
+
+### T9 - Mise à jour progressive (Rolling Update) et retour arrière
+1. Constuire et charger la version `1.1.0` dans Minikube : 
+``` bash
+docker build -t taskboard-web:1.1.0 ./app
+minikube image load taskboard-web:1.1.0
+```
+2. Déclencher la mise à jour sans interruption de service : 
+``` bash 
+kubectl set image deployment/web web=taskboard-web:1.1.0 -n taskboard
+kubectl rollout status deployment/web -n taskboard
+```
+3. Revenir à la version précédente (`1.0.0`) : 
+``` bash
+kubectl rollout undo deployment/web -n taskboard
+kubectl rollout status deployment/web -n taskboard
+```
