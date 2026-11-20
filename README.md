@@ -531,3 +531,16 @@ kubectl rollout status deployment/web -n taskboard
 kubectl rollout undo deployment/web -n taskboard
 kubectl rollout status deployment/web -n taskboard
 ```
+___
+## Analyse de sécurité de l'image (Trivy - DOC-7)
+
+L'image `taskboard-web:1.0.0` est analysée avec **Trivy** afin de détecter d'éventuelles vulnérabilités `HIGH` ou `CRITICAL` : 
+
+``` bash 
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+aquasec/trivy image --severity HIGH,CRITICAL taskboard-web:1.0.0
+```
+
+- **Constat initial** Le premier scan a relevé `10` vulnérabilités `HIGH` (et `0` `CRITICAL`), toutes situées dans les outils de gestion de paquets inclus par défaut dans l'image de base `node:22-alpine` (`npm`,`pacote`,`brace-expansion`,`picomatch`,`sigstore`,`ip-address`), tandis que l'OS Alpine et les dépendances de l'application (`app/node_modules`) présentaient `0` vulnérabilité. 
+- **Remédiation appliquée** : Suppression de `npm`, `npx`, `yarn` et `corepack` dans le stage final du `Dockerfile`, ces binaires étant inutiles à l'exécution en production (`node server.js`). 
+- **Résultat après correction** : `0` vulnérabilité `CRITICAL` et `0` vulnérabilité `HIGH` détectées.
