@@ -22,6 +22,7 @@ spec:
     spec:
       containers:
         - name: web # ce nom sera utilisé en T9 : kubectl set image ... web=...
-          image: nginx:1.27-alpine # PROVISOIRE ; toujours une version précise, jamais latest
+          image: taskboard-web:1.0.0 # Vrai image web
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 80 # nginx écoute sur 80 ; passera à 3000 en S3 (cahier p.11)
+            - containerPort: 3000 # mise sur le port 3000 pour l'image du site

@@ -14,5 +14,6 @@ spec:
     tier: web
   ports:
     - port: 80 # port du Service à l'intérieur du cluster
-      targetPort: 80 # port du conteneur ; passera à 3000 en S3 (cahier p.11)
+      targetPort: 3000 # port du conteneur sur le port 3000 pour l'image du site       
       nodePort: 30080 # port ouvert sur le nœud, celui qu'on appelle depuis le PC
+
