@@ -1,0 +1,18 @@
+# Service "web" : point d'entrée unique vers les Pods web, accessible depuis le PC.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: taskboard
+  labels:
+    app: taskboard
+    tier: web
+spec:
+  type: NodePort # K8S-6 : ouvre un port sur le nœud, accessible de l'extérieur
+  selector: # envoie le trafic vers les Pods qui portent ces labels
+    app: taskboard
+    tier: web
+  ports:
+    - port: 80 # port du Service à l'intérieur du cluster
+      targetPort: 80 # port du conteneur ; passera à 3000 en S3 (cahier p.11)
+      nodePort: 30080 # port ouvert sur le nœud, celui qu'on appelle depuis le PC
