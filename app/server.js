@@ -22,6 +22,11 @@ app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Empêche le crash de Node.js si PostgreSQL coupe une connexion inactive (test T6)
+pool.on('error', (err) => {
+  console.error('Connexion inactive PostgreSQL perdue :', err.message);
+});
+
 // APP-5 : Route readyz (teste la connexion à la base)
 app.get('/readyz', async (req, res) => {
   try {
