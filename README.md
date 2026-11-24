@@ -463,4 +463,406 @@ Ouvre navigateur à l'adresse : http://localhost:3000
 
 
 Semaine 1 (9 – 15 nov.) — ✅ Terminée à 100 %✅ Serveur Node.js / Express + PostgreSQL (app/server.js, app/package.json), sans mot de passe en dur.✅ API CRUD /api/tasks complète (GET, POST, PATCH, DELETE) alignée sur la table taches.✅ Sondes de santé /healthz (200 OK) et /readyz (SELECT 1, 200 ou 503) testées et validées.Semaine 2 (16 – 22 nov.) — ✅ Ta partie est bouclée (en attente d'équipe)✅ Interface HTML (app/public/index.html) + bonus APP-6 (affichage du nom du Pod via /api/hostname).✅ ConfigMap k8s/10-configmap.yaml (web-config, namespace taskboard, 5 variables sans mot de passe).✅ PR #1 nettoyée : node_modules/ retiré de Git (passée de 730 à 7 fichiers modifiés), description complète et liée au projet GitHub.   ✅ Test Docker Compose validé : build de taskboard-web:1.0.0, initialisation PostgreSQL (db/init.sql), affichage des 3 tâches et du hostname du conteneur.   ⬜ Reste côté équipe pour clôturer S2 :Faire valider et merger ta PR #1 par Justin (vérifie qu'il est bien mis en Reviewer sur GitHub).   Relire la PR docker de Justin (indentation de compose.yaml + suppression de app/node_modules/).Une fois les PR de tout le monde mergées dans main, refaire le docker compose up --build depuis main.Semaine 3 (23 – 29 nov.) — 🚀 Déjà bien avancée✅ Version v1.1.0 prête : package.json passé en 1.1.0, nouveau thème vert + badge v1.1.0 + case à cocher (PATCH) dans index.html, poussée sur la branche app/v1.1.0 et taguée v1.1.0. (À ne pas merger dans main tant que la 1.0.0 n'est pas mergée et buildée.)⬜ Intégration Minikube : corriger d'éventuels bugs quand Hugo et Justin déploieront sur le cluster.Semaine 4 (30 nov. – 6 déc.) — ⬜ À venir⬜ Valider les tests T3 (persistance des tâches) et T6 (base à 0 réplica → Pods web en 0/1 sans redémarrer) sur Minikube, ajouter les commandes au README.md et faire les captures (docs/captures/).⬜ Rédiger tes parties du rapport (docs/rapport) : « Application et sondes de santé », tableau « Répartition du travail », difficultés et solutions.Semaine de marge (7 – 14 déc.) — ⬜ À venir⬜ Relecture du README.md, test « cluster vierge » et 2 répétitions chronométrées avant le rendu (15 déc.) et la soutenance (16 déc.).
+___
+## Lancement en local (Docker Compose)
 
+Pour tester l'application et la base de données PostgreSQL en local sans Kubernetes : 
+
+1. Créer le fichier d'envrionnement à partir du modèle : 
+``` bash 
+cp .env.example .env
+```
+
+2. Démarrer la stack complète (base de données + application web) : 
+``` bash 
+docker compose up -d --build
+```
+
+3. Accéder à l'application sur `http://localhost:3000`
+
+4. Arrêter et nettoyer les conteneurs (ajouter `-v` pour réinitialiser la base de données) : 
+``` bash 
+docker compose down 
+```
+
+## Construction et chargement des images Docker (Minikube)
+Minikube utilise son propre registre interne isolé. Il faut construire l'image localement puis la charger explicitement dans le cluster : 
+
+1. Constuire l'image de l'application web depuis la racine du dépôt : 
+``` bash 
+docker build -t taskboard-web:1.0.0 ./app
+```
+
+2. Charger l'image dans le cluster Minikube 
+``` bash
+minikube image load taskboard-web:1.0.0
+```
+
+3. Vérifier que l'image est bien présente dans Minikube : 
+``` bash 
+minikube image ls | grep taskboard
+```
+
+## Validation Docker : Sécurité (T8) et Mise à jour (T9)
+
+### T8 - Vérification de l'absence de secrets et utilisateur non-root dans l'image
+- Vérifier l'historique des couches de l'image (aucun mot de passe en clair) : 
+``` bash 
+docker history --no-trunc taskboard-web:1.0.0
+```
+- Vérifier que le conteneur s'exécute bien avec l'UID non-root `1000` : 
+``` bash 
+docker run --rm taskboard-web:1.0.0 id`
+```
+
+### T9 - Mise à jour progressive (Rolling Update) et retour arrière
+1. Constuire et charger la version `1.1.0` dans Minikube : 
+``` bash
+docker build -t taskboard-web:1.1.0 ./app
+minikube image load taskboard-web:1.1.0
+```
+2. Déclencher la mise à jour sans interruption de service : 
+``` bash 
+kubectl set image deployment/web web=taskboard-web:1.1.0 -n taskboard
+kubectl rollout status deployment/web -n taskboard
+```
+3. Revenir à la version précédente (`1.0.0`) : 
+``` bash
+kubectl rollout undo deployment/web -n taskboard
+kubectl rollout status deployment/web -n taskboard
+```
+___
+## Analyse de sécurité de l'image (Trivy - DOC-7)
+
+L'image `taskboard-web:1.0.0` est analysée avec **Trivy** afin de détecter d'éventuelles vulnérabilités `HIGH` ou `CRITICAL` : 
+
+``` bash 
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+aquasec/trivy image --severity HIGH,CRITICAL taskboard-web:1.0.0
+```
+
+- **Constat initial** Le premier scan a relevé `10` vulnérabilités `HIGH` (et `0` `CRITICAL`), toutes situées dans les outils de gestion de paquets inclus par défaut dans l'image de base `node:22-alpine` (`npm`,`pacote`,`brace-expansion`,`picomatch`,`sigstore`,`ip-address`), tandis que l'OS Alpine et les dépendances de l'application (`app/node_modules`) présentaient `0` vulnérabilité. 
+- **Remédiation appliquée** : Suppression de `npm`, `npx`, `yarn` et `corepack` dans le stage final du `Dockerfile`, ces binaires étant inutiles à l'exécution en production (`node server.js`). 
+- **Résultat après correction** : `0` vulnérabilité `CRITICAL` et `0` vulnérabilité `HIGH` détectées.
+**Etape 9**
+
+Ajout du mdp et du patch ds server.js
+
+const express = require('express');
+const path = require('path');
+const { Pool } = require('pg');
+
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Connexion à la base via les variables d'environnement (Contrat d'interface)
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'taskboard',
+  user: process.env.DB_USER || 'taskboard',
+  password: process.env.DB_PASSWORD,
+});
+
+const PORT = process.env.APP_PORT || 3000;
+
+// APP-4 : Route healthz (sans interroger la base)
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// APP-5 : Route readyz (teste la connexion à la base)
+app.get('/readyz', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.status(200).send('Ready');
+  } catch (err) {
+    res.status(503).send('Database not ready');
+  }
+});
+
+// APP-1, APP-2 : Lister les tâches
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM taches ORDER BY id DESC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// APP-1, APP-2 : Créer une tâche
+app.post('/api/tasks', async (req, res) => {
+  const { titre } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO taches (titre, terminee, date_creation) VALUES ($1, false, NOW()) RETURNING *',
+      [titre]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// APP-2 : Marquer une tâche comme terminée / non terminée
+app.patch('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE taches SET terminee = NOT terminee WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Tâche introuvable' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// APP-2 : Supprimer une tâche
+app.delete('/api/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM taches WHERE id = $1', [id]);
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// BONUS APP-6 : Route pour récupérer le nom du Pod
+app.get('/api/hostname', (req, res) => {
+  res.json({ hostname: process.env.HOSTNAME || 'localhost-dev' });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+
+
+**Etape 9**
+
+creer branche  : git checkout -b app/v1.1.0
+
+et dans package.json on passe a cett version "version": "1.1.0",
+
+Test avec une mini modif sur le site 
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskBoard v1.1.0 - DevOps Project</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 600px; 
+            margin: 40px auto; 
+            padding: 0 20px; 
+            background-color: #ecfdf5;
+            color: #1f2937;
+        }
+        h1 { 
+            color: #065f46; 
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .version-badge {
+            background: #10b981;
+            color: white;
+            font-size: 0.45em;
+            padding: 4px 10px;
+            border-radius: 999px;
+            vertical-align: middle;
+        }
+        .pod-info { 
+            background: #d1fae5; 
+            border-left: 4px solid #10b981; 
+            padding: 10px 15px; 
+            margin-bottom: 20px; 
+            border-radius: 4px; 
+            font-size: 0.95em; 
+            color: #065f46; 
+        }
+        form { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+        }
+        input[type="text"] { 
+            flex: 1; 
+            padding: 10px; 
+            border: 1px solid #a7f3d0; 
+            border-radius: 4px; 
+            font-size: 1em; 
+        }
+        button { 
+            padding: 10px 15px; 
+            border: none; 
+            cursor: pointer; 
+            border-radius: 4px; 
+            font-weight: bold; 
+        }
+        .btn-add { background: #059669; color: white; }
+        .btn-add:hover { background: #047857; }
+        .btn-delete { background: #e74c3c; color: white; padding: 5px 10px; font-size: 0.85em; }
+        .btn-delete:hover { background: #c0392b; }
+        ul { list-style: none; padding: 0; }
+        li { 
+            background: #fff; 
+            border: 1px solid #d1fae5; 
+            padding: 12px 15px; 
+            margin-bottom: 8px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .task-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .task-done {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>TaskBoard <span class="version-badge">v1.1.0</span></h1>
+    
+    <!-- Bonus APP-6 : Affichage du nom du Pod / Hostname -->
+    <div class="pod-info">
+        🖥️ Servi par le Pod : <strong id="hostname">Chargement...</strong>
+    </div>
+
+    <!-- Formulaire d'ajout de tâche -->
+    <form id="task-form">
+        <input type="text" id="task-title" placeholder="Nouvelle tâche à accomplir..." required>
+        <button type="submit" class="btn-add">Ajouter</button>
+    </form>
+
+    <!-- Liste des tâches -->
+    <ul id="task-list">
+        <!-- Chargé dynamiquement via JavaScript -->
+    </ul>
+
+    <script>
+        // Récupérer et afficher le nom du Pod (Bonus APP-6)
+        async function loadHostname() {
+            try {
+                const res = await fetch('/api/hostname');
+                const data = await res.json();
+                document.getElementById('hostname').innerText = data.hostname;
+            } catch (err) {
+                document.getElementById('hostname').innerText = window.location.hostname;
+            }
+        }
+
+        // Charger la liste des tâches depuis l'API
+        async function loadTasks() {
+            try {
+                const res = await fetch('/api/tasks');
+                const tasks = await res.json();
+                const list = document.getElementById('task-list');
+                list.innerHTML = '';
+                
+                if (tasks.length === 0) {
+                    list.innerHTML = '<li style="justify-content: center; color: #7f8c8d;">Aucune tâche pour le moment.</li>';
+                    return;
+                }
+
+                tasks.forEach(t => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div class="task-left">
+                            <input type="checkbox" ${t.terminee ? 'checked' : ''} onchange="toggleTask(${t.id})">
+                            <span class="${t.terminee ? 'task-done' : ''}">${t.titre}</span>
+                        </div>
+                        <button class="btn-delete" onclick="deleteTask(${t.id})">Supprimer</button>
+                    `;
+                    list.appendChild(li);
+                });
+            } catch (err) {
+                console.error("Erreur lors du chargement des tâches :", err);
+            }
+        }
+
+        // Ajouter une tâche
+        document.getElementById('task-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const titleInput = document.getElementById('task-title');
+            
+            try {
+                await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ titre: titleInput.value })
+                });
+                titleInput.value = '';
+                loadTasks();
+            } catch (err) {
+                console.error("Erreur lors de l'ajout :", err);
+            }
+        });
+
+        // Cocher / décocher une tâche (PATCH)
+        async function toggleTask(id) {
+            try {
+                await fetch(`/api/tasks/${id}`, { method: 'PATCH' });
+                loadTasks();
+            } catch (err) {
+                console.error("Erreur lors de la mise à jour :", err);
+            }
+        }
+
+        // Supprimer une tâche
+        async function deleteTask(id) {
+            try {
+                await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+                loadTasks();
+            } catch (err) {
+                console.error("Erreur lors de la suppression :", err);
+            }
+        }
+
+        // Initialisation au chargement de la page
+        loadHostname();
+        loadTasks();
+    </script>
+</body>
+</html>
+
+
+k
+
+##  Créer le Secret PostgreSQL
+
+1-  Démarrez votre Minikube, vérifiez que kubectl cible ce cluster et créez le namespace taskboard s’il n’existe pas
+
+Chacun choisit son mot de passe pour son Minikube local. Le fichier k8s/11-secret.example.yaml sert de modèle avec la valeur fictive A_REMPLACER
+
+2- Enregistrer le mot de passe de développement dans un fichier texte hors du dépôt, sans retour à la ligne final. Remplacer CHEMIN_VERS_LE_FICHIER par le chemin de ce fichier. Avec --from-file, kubectl lit le contenu du fichier et le range sous la clé DB_PASSWORD. Le mot de passe reste ainsi hors de la commande : 
+
+```bash
+kubectl create secret generic db-credentials --namespace taskboard --from-file="DB_PASSWORD=CHEMIN_VERS_LE_FICHIER"
+```
+
+3- Vérifier que le Secret contient la bonne clé sans afficher sa valeur : 
+
+```bash
+kubectl describe secret db-credentials --namespace taskboard
+```
+
+Le Secret est de type Opaque. La section Data affiche DB_PASSWORD et sa taille en octets.
