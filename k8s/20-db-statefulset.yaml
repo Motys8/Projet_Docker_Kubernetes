@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: taskboard
+spec:
+  serviceName: db-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: taskboard
+      tier: db
+  template:
+    metadata:
+      labels:
+        app: taskboard
+        tier: db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+          - name: POSTGRES_DB
+            valueFrom:
+              configMapKeyRef:
+                name: web-config
+                key: DB_NAME
+          - name: POSTGRES_USER
+            valueFrom:
+              configMapKeyRef:
+                name: web-config
+                key: DB_USER
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-credentials
+                key: DB_PASSWORD
+          - name: PGDATA
+            value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+          - name: db-data
+            mountPath: /var/lib/postgresql/data
+          - name: db-init-sql
+            mountPath: /docker-entrypoint-initdb.d
+            readOnly: true
+      volumes:
+        - name: db-init-sql
+          configMap:
+            name: db-init
+  volumeClaimTemplates:
+  - metadata:
+      name: db-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-headless
+  namespace: taskboard
+  labels:
+    app: taskboard
+    tier: db
+spec:
+  clusterIP: None
+  selector:
+    app: taskboard
+    tier: db
+  ports:
+    - port: 5432
+      targetPort: 5432
