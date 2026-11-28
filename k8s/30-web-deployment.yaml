@@ -1,27 +1,47 @@
-# Deployment "web" : fait tourner l'application TaskBoard (partie sans état).
-# Version S2 : image provisoire nginx, remplacée en S3 par taskboard-web:1.0.0.
-apiVersion: apps/v1
+﻿apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: web
   namespace: taskboard
-  labels: # K8S-1 : labels communs à tous les objets
+  labels:
     app: taskboard
     tier: web
 spec:
-  replicas: 2 # K8S-2 : 2 copies, si un Pod tombe l'autre répond
+  replicas: 2
   selector:
-    matchLabels: # le Deployment gère les Pods qui portent ces labels
+    matchLabels:
       app: taskboard
       tier: web
-  template: # modèle utilisé pour créer chaque Pod
+  template:
     metadata:
-      labels: # doivent être identiques au selector ci-dessus
+      labels:
         app: taskboard
         tier: web
     spec:
       containers:
-        - name: web # ce nom sera utilisé en T9 : kubectl set image ... web=...
-          image: nginx:1.27-alpine # PROVISOIRE ; toujours une version précise, jamais latest
+        - name: web
+          image: taskboard-web:1.0.0
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 80 # nginx écoute sur 80 ; passera à 3000 en S3 (cahier p.11)
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: web-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
